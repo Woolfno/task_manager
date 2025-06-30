@@ -1,6 +1,6 @@
+from json import JSONDecodeError
 from typing import Annotated
 from uuid import UUID
-from json import JSONDecodeError
 
 from fastapi import Depends, WebSocket, WebSocketDisconnect
 from fastapi import status as status_code
@@ -9,9 +9,10 @@ from fastapi.routing import APIRouter
 from pydantic import ValidationError
 
 from app.api.schemas.message import Notification, TypeMsg
-from app.api.schemas.task import Status, Task, TaskIn
+from app.api.schemas.task import Task, TaskIn
 from app.api.services.task import TaskService, get_task_service
 from app.api.services.ws import ConnectionManager
+from app.db.models import Status
 
 router = APIRouter(prefix="/tasks", tags=["Tasks",])
 
@@ -20,10 +21,10 @@ ws_manager = ConnectionManager()
 
 @router.get("/")
 async def list_tasks(service: Annotated[TaskService, Depends(get_task_service)]) -> list[Task]:
-    return await service.list()
+    return await service.get_all()
 
 
-@router.post("/")
+@router.post("/", status_code=status_code.HTTP_201_CREATED)
 async def create_task(task: TaskIn, service: Annotated[TaskService, Depends(get_task_service)]):
     t = await service.create(task)
     msg = Notification(type_msg=TypeMsg.CREATE, task=t)
@@ -43,7 +44,7 @@ async def change_status(id: UUID, status: Status, service: Annotated[TaskService
 
 @router.delete('/{id}')
 async def remove(id: UUID, service: Annotated[TaskService, Depends(get_task_service)]):
-    t = await service.get(id)
+    t = await service.get_by_id(id)
     if t is None:
         return
     await service.remove(id)

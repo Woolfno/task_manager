@@ -1,0 +1,81 @@
+import threading
+
+import pytest
+import sqlalchemy as sa
+from fastapi import status
+from fastapi.testclient import TestClient
+from httpx import AsyncClient
+from httpx_ws import aconnect_ws
+from httpx_ws.transport import ASGIWebSocketTransport
+from psycopg2._psycopg import connection
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.schemas.message import Notification, TypeMsg
+from app.api.schemas.task import Task, TaskIn
+from app.db import models
+from app.db.models import Status
+from main import app
+
+
+async def create_task(client: AsyncClient, task):
+    response = await client.post("/api/tasks/", json=task.model_dump_json())
+    assert response.status_code == 201
+
+
+@pytest.mark.skip
+@pytest.mark.asyncio
+async def test_websocket():
+    task = TaskIn(title="test", description="test task")
+    async with AsyncClient(transport=ASGIWebSocketTransport(app), base_url="http://testserver") as client:
+        async with aconnect_ws(url="http://testserver/api/tasks/ws", client=client) as ws:
+            p = threading.Thread(target=create_task, args=[client, task])
+            p.start()
+            data = await ws.receive_json()
+            msg = Notification.model_validate_json(data)
+            p.join()
+            assert msg.type_msg == TypeMsg.CREATE
+
+
+@pytest.mark.asyncio
+async def test_create_task(client: AsyncClient, session: AsyncSession):
+    t = TaskIn(title="test", description="test task")
+    response = await client.post("/api/tasks/", json={"title":t.title, "description":t.description})
+    assert response.status_code == status.HTTP_201_CREATED
+    task_r = Task.model_validate(response.json())
+
+    result = await session.execute(sa.select(models.Task).where(models.Task.id == task_r.id))
+    result = result.scalar_one_or_none()
+    assert result is not None
+    assert result.title == t.title
+    assert result.description == t.description
+    assert result.status == Status.OPEN
+
+    await session.delete(result)
+    await session.commit()
+
+async def test_change_status(client:AsyncClient, session:AsyncSession, task:models.Task):
+    new_status = Status.CLOSE
+    response = await client.put(f"/api/tasks/{task.id}?status={new_status.value}")
+    assert response.status_code == status.HTTP_200_OK
+
+    result = await session.get(models.Task, task.id)
+
+    assert result is not None
+    assert result.status == new_status
+
+async def test_remove(client:AsyncClient, session:AsyncSession, task:models.Task):
+    response = await client.delete(f"/api/tasks/{task.id}")
+    assert response.status_code == status.HTTP_200_OK
+
+    result = await session.get(models.Task, task.id)
+    assert result is None
+
+async def test_list_tasks(client:AsyncClient, task:models.Task):
+    response = await client.get("/api/tasks/")
+    assert response.status_code == status.HTTP_200_OK
+
+    tasks = response.json()
+    tt = []
+    for t in tasks:
+        tt.append(Task.model_validate(t))
+    assert len(tt) > 0
