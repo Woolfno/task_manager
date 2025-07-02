@@ -12,7 +12,8 @@ from app.api.schemas.message import Notification, TypeMsg
 from app.api.schemas.task import Task, TaskIn
 from app.api.services.task import TaskService, get_task_service
 from app.api.services.ws import ConnectionManager
-from app.db.models import Status
+from app.core.security import get_current_user
+from app.db.models import Status, User
 
 router = APIRouter(prefix="/tasks", tags=["Tasks",])
 
@@ -25,8 +26,10 @@ async def list_tasks(service: Annotated[TaskService, Depends(get_task_service)])
 
 
 @router.post("/", status_code=status_code.HTTP_201_CREATED)
-async def create_task(task: TaskIn, service: Annotated[TaskService, Depends(get_task_service)]):
-    t = await service.create(task)
+async def create_task(task: TaskIn,
+                      current_user: Annotated[User, Depends(get_current_user)],
+                      service: Annotated[TaskService, Depends(get_task_service)]):
+    t = await service.create(task, current_user.id)
     msg = Notification(type_msg=TypeMsg.CREATE, task=t)
     await ws_manager.broadcast(msg)
     return t

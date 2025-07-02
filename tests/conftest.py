@@ -1,5 +1,6 @@
 from typing import Any, AsyncGenerator
 
+import pytest
 import pytest_asyncio
 from alembic import command, config
 from httpx import AsyncClient
@@ -9,7 +10,9 @@ from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
                                     create_async_engine)
 from sqlalchemy.pool import NullPool
 
+from app.api.schemas.user import UserIn
 from app.core.config import Settings, get_settings
+from app.core.security import create_access_token, get_password_hash
 from app.db import models
 from app.db.database import get_session
 from main import app
@@ -76,3 +79,21 @@ async def task(session: AsyncSession) -> AsyncGenerator[models.Task, Any]:
 
     await session.delete(t)
     await session.commit()
+
+
+@pytest_asyncio.fixture(scope='function')
+async def user(session: AsyncSession) -> AsyncGenerator[UserIn, Any]:
+    u = UserIn(username='test_user', password='123')
+    user = models.User(username=u.username,
+                       password=get_password_hash(u.password))
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    yield u
+    await session.delete(user)
+    await session.commit()
+
+
+@pytest.fixture
+def access_token(user: UserIn) -> str:
+    return create_access_token(data={'sub': user.username})
