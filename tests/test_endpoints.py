@@ -3,15 +3,14 @@ import threading
 import pytest
 import sqlalchemy as sa
 from fastapi import status
-from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from httpx_ws import aconnect_ws
 from httpx_ws.transport import ASGIWebSocketTransport
-from psycopg2._psycopg import connection
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.message import Notification, TypeMsg
 from app.api.schemas.task import Task, TaskIn
+from app.api.schemas.user import UserIn
 from app.db import models
 from app.db.models import Status
 from main import app
@@ -37,9 +36,12 @@ async def test_websocket():
 
 
 @pytest.mark.asyncio
-async def test_create_task(client: AsyncClient, session: AsyncSession):
+async def test_create_task(client: AsyncClient, session: AsyncSession, user: UserIn, access_token: str):
     t = TaskIn(title="test", description="test task")
-    response = await client.post("/api/tasks/", json={"title":t.title, "description":t.description})
+    response = await client.post("/api/tasks/",
+                                 json={"title": t.title,
+                                       "description": t.description},
+                                 headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == status.HTTP_201_CREATED
     task_r = Task.model_validate(response.json())
 
@@ -49,11 +51,13 @@ async def test_create_task(client: AsyncClient, session: AsyncSession):
     assert result.title == t.title
     assert result.description == t.description
     assert result.status == Status.OPEN
+    assert result.author.username == user.username
 
     await session.delete(result)
     await session.commit()
 
-async def test_change_status(client:AsyncClient, session:AsyncSession, task:models.Task):
+
+async def test_change_status(client: AsyncClient, session: AsyncSession, task: models.Task):
     new_status = Status.CLOSE
     response = await client.put(f"/api/tasks/{task.id}?status={new_status.value}")
     assert response.status_code == status.HTTP_200_OK
@@ -63,14 +67,16 @@ async def test_change_status(client:AsyncClient, session:AsyncSession, task:mode
     assert result is not None
     assert result.status == new_status
 
-async def test_remove(client:AsyncClient, session:AsyncSession, task:models.Task):
+
+async def test_remove(client: AsyncClient, session: AsyncSession, task: models.Task):
     response = await client.delete(f"/api/tasks/{task.id}")
     assert response.status_code == status.HTTP_200_OK
 
     result = await session.get(models.Task, task.id)
     assert result is None
 
-async def test_list_tasks(client:AsyncClient, task:models.Task):
+
+async def test_list_tasks(client: AsyncClient, task: models.Task):
     response = await client.get("/api/tasks/")
     assert response.status_code == status.HTTP_200_OK
 

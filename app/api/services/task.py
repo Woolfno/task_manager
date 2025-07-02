@@ -24,8 +24,8 @@ class TaskService:
             return None
         return Task.model_validate(task)
 
-    async def create(self, task: TaskIn) -> Task:
-        t = models.Task(**task.model_dump())
+    async def create(self, task: TaskIn, author_id: UUID) -> Task:
+        t = models.Task(**task.model_dump(), author_id=author_id)
         self.session.add(t)
         await self.session.commit()
         await self.session.flush()
