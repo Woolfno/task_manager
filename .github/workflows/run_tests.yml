@@ -27,7 +27,7 @@ jobs:
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
-      DB_NAME: tast_db
+      DB_NAME: test_db
       SECRET_KEY: '1234567890qwerty'
     steps:
     - uses: actions/checkout@v4
