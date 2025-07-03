@@ -37,7 +37,7 @@ async def login(user: UserIn, service: Annotated[UserService, Depends(get_user_s
     return Token(access_token=token)
 
 
-@router.post('/token')
+@router.post('/token', include_in_schema=False)
 async def token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 service: Annotated[UserService, Depends(get_user_service)]) -> Token:
     return await login(UserIn(username=form_data.username, password=form_data.password),
