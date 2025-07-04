@@ -1,38 +1,13 @@
-import threading
-
 import pytest
 import sqlalchemy as sa
 from fastapi import status
 from httpx import AsyncClient
-from httpx_ws import aconnect_ws
-from httpx_ws.transport import ASGIWebSocketTransport
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas.message import Notification, TypeMsg
 from app.api.schemas.task import Task, TaskIn
 from app.api.schemas.user import UserIn
 from app.db import models
 from app.db.models import Status
-from main import app
-
-
-async def create_task(client: AsyncClient, task):
-    response = await client.post("/api/tasks/", json=task.model_dump_json())
-    assert response.status_code == 201
-
-
-@pytest.mark.skip
-@pytest.mark.asyncio
-async def test_websocket():
-    task = TaskIn(title="test", description="test task")
-    async with AsyncClient(transport=ASGIWebSocketTransport(app), base_url="http://testserver") as client:
-        async with aconnect_ws(url="http://testserver/api/tasks/ws", client=client) as ws:
-            p = threading.Thread(target=create_task, args=[client, task])
-            p.start()
-            data = await ws.receive_json()
-            msg = Notification.model_validate_json(data)
-            p.join()
-            assert msg.type_msg == TypeMsg.CREATE
 
 
 @pytest.mark.asyncio
