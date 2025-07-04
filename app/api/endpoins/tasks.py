@@ -36,7 +36,9 @@ async def create_task(task: TaskIn,
 
 
 @router.put('/{id}')
-async def change_status(id: UUID, status: Status, service: Annotated[TaskService, Depends(get_task_service)]) -> Task:
+async def change_status(id: UUID, status: Status, 
+                        _:Annotated[User, Depends(get_current_user)],
+                        service: Annotated[TaskService, Depends(get_task_service)]) -> Task:
     t = await service.update_status(id, status)
     if t is None:
         raise HTTPException(status_code=status_code.HTTP_404_NOT_FOUND)
@@ -46,7 +48,9 @@ async def change_status(id: UUID, status: Status, service: Annotated[TaskService
 
 
 @router.delete('/{id}')
-async def remove(id: UUID, service: Annotated[TaskService, Depends(get_task_service)]):
+async def remove(id: UUID, 
+                 _:Annotated[User, Depends(get_current_user)],
+                 service: Annotated[TaskService, Depends(get_task_service)]):
     t = await service.get_by_id(id)
     if t is None:
         return

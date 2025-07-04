@@ -32,9 +32,11 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, user: Use
     await session.commit()
 
 
-async def test_change_status(client: AsyncClient, session: AsyncSession, task: models.Task):
+async def test_change_status(client: AsyncClient, session: AsyncSession, 
+                             user, access_token:str, task: models.Task):
     new_status = Status.CLOSE
-    response = await client.put(f"/api/tasks/{task.id}?status={new_status.value}")
+    response = await client.put(f"/api/tasks/{task.id}?status={new_status.value}",
+                                headers={"Authorization": f'Bearer {access_token}'})
     assert response.status_code == status.HTTP_200_OK
 
     result = await session.get(models.Task, task.id)
@@ -43,8 +45,10 @@ async def test_change_status(client: AsyncClient, session: AsyncSession, task: m
     assert result.status == new_status
 
 
-async def test_remove(client: AsyncClient, session: AsyncSession, task: models.Task):
-    response = await client.delete(f"/api/tasks/{task.id}")
+async def test_remove(client: AsyncClient, session: AsyncSession, 
+                      user, access_token:str, task: models.Task):
+    response = await client.delete(f"/api/tasks/{task.id}", 
+                                   headers={'Authorization': f'Bearer {access_token}'})
     assert response.status_code == status.HTTP_200_OK
 
     result = await session.get(models.Task, task.id)
